@@ -1,0 +1,1 @@
+export { registerRoutes, type RegisterRoutesOptions } from "./route-loader.js";

@@ -16,6 +16,7 @@
 - 🚀 **Multiple route directories** — organize by feature, version, or prefix
 - ⚡ **Drop-in compatible** — use in existing Express projects
 - 🛡️ **Conflict detection** — warns about overlapping dynamic routes
+- 📘 **TypeScript support** — full type definitions included
 
 ## Quick Start
 
@@ -35,6 +36,49 @@ npm run dev
 Add file-based routing to your current Express app:
 ```bash
 npm install @thizjs/core
+```
+
+### TypeScript Support
+
+`@thizjs/core` includes full TypeScript definitions out of the box. Install type definitions for Express:
+```bash
+npm install @thizjs/core
+npm install -D @types/express @types/node
+```
+
+**TypeScript example:**
+```typescript
+import express, { Request, Response } from 'express';
+import { registerRoutes } from '@thizjs/core';
+
+const app = express();
+
+app.use(express.json());
+
+// Full type safety and autocomplete
+await registerRoutes(app, 'routes', { 
+  prefix: '/api',
+  strict: true 
+});
+
+app.listen(3000);
+```
+
+**Type-safe route handlers:**
+```typescript
+// src/routes/product/[id]/GET.ts
+import { Request, Response } from 'express';
+
+export default async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const product = await db.products.findById(id);
+  
+  if (!product) {
+    return res.status(404).json({ error: 'Product not found' });
+  }
+  
+  res.json(product);
+};
 ```
 
 ## Usage
@@ -322,8 +366,7 @@ export default async (req, res) => {
 2. **Method files:** Named `GET.js`, `POST.js`, `PUT.js`, `PATCH.js`, or `DELETE.js` (case-insensitive)
 3. **Dynamic segments:** Use `[param]` folders to create `:param` URL parameters
 4. **Handler export:** Must use `export default` with a function
-5. **File extensions:** Must be `.js` files (`.ts` support coming soon)
-
+5. **File extensions:** Must be `.js` files (TypeScript projects can use `.ts` with appropriate transpilation)
 ## Examples
 
 ### RESTful CRUD API
@@ -423,9 +466,9 @@ We welcome contributions! If you find a bug or want to add a feature:
 ## Coming Soon
 
 - 🔄 Middleware support (per-route and global)
-- 📘 TypeScript support (`.ts` route files)
 - 🎣 Route hooks (beforeEach, afterEach)
 - 🔌 Plugin system
+- 📘 Native `.ts` route files (currently supports TS via type definitions)
 
 Want these features? [Open an issue](https://github.com/santhosh-2504/thizjs-core/issues) or contribute!
 
