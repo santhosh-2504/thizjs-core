@@ -1,10 +1,18 @@
 {
   "name": "@thizjs/core",
   "version": "0.0.2",
-  "description": "Core utilities for the THIZ backend framework",
+  "description": "File-based routing for Express — the backbone of THIZ.js",
   "main": "src/index.js",
   "type": "module",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/santhosh-2504/thizjs-core.git"
+  },
+  "bugs": {
+    "url": "https://github.com/santhosh-2504/thizjs-core/issues"
+  },
+  "homepage": "https://github.com/santhosh-2504/thizjs-core#readme",
   "keywords": [
     "thiz",
     "framework",
