@@ -1,0 +1,1 @@
+export { registerRoutes } from "./route-loader.js";

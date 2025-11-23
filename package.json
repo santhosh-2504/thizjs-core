@@ -1,0 +1,12 @@
+{
+  "name": "@thizjs/core",
+  "version": "0.0.1",
+  "description": "Core utilities for the THIZ backend framework",
+  "main": "src/index.js",
+  "type": "module",
+  "license": "MIT",
+  "keywords": ["thiz", "framework", "backend", "routing"],
+  "files": [
+    "src"
+  ]
+}
