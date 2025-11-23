@@ -7,7 +7,7 @@
 
 ## What is this?
 
-`@thizjs/core` is the routing engine that powers [THIZ.js](https://github.com/santhosh-2504/create-thiz-app). It brings **file-based routing** to Express.js — no more tedious `app.get()`, `app.post()` boilerplate. Just create files, export handlers, and you're done.
+`@thizjs/core` is the routing engine that powers [THIZ.js](https://github.com/santhosh-2504/create-thiz-app). It brings **file-based routing** and **zero-config middleware** to Express.js — no more tedious `app.get()`, `app.post()` boilerplate. Just create files, export handlers, and you're done.
 
 **Features:**
 - 📁 **File-based routing** — structure matches your API endpoints
@@ -17,6 +17,7 @@
 - ⚡ **Drop-in compatible** — use in existing Express projects
 - 🛡️ **Conflict detection** — warns about overlapping dynamic routes
 - 📘 **Native TypeScript support** — write route files in `.ts` or `.js`
+- 🔌 **Convention-based middleware** — drop files, auto-apply globally or per-route
 
 ## Quick Start
 
@@ -45,6 +46,7 @@ npm install @thizjs/core
 npm install @thizjs/core
 npm install -D @types/express @types/node
 ```
+
 ### Native `.ts` Route Files
 
 Write route handlers directly in TypeScript:
@@ -80,24 +82,6 @@ export default async (req: Request, res: Response) => {
 - ⚠️ **Cannot mix extensions:** Choose either `.js` OR `.ts` for each route (not both)
 - ✅ **TypeScript is optional:** JavaScript-only projects work without any extra dependencies
 - ✅ **Graceful fallback:** Clear error messages if `.ts` files are used without `tsx` installed
-
-**Using TypeScript in your App:**
-```typescript
-import express, { Request, Response } from 'express';
-import { registerRoutes } from '@thizjs/core';
-
-const app = express();
-
-app.use(express.json());
-
-// Full type safety and autocomplete
-await registerRoutes(app, 'routes', { 
-  prefix: '/api',
-  strict: true 
-});
-
-app.listen(3000);
-```
 
 ## Usage
 
@@ -164,6 +148,229 @@ export default async (req, res) => {
 
 **`src/routes/product/POST.js`**
 ```javascript
+export default async (req, res) => {
+  const product = await db.products.create(req.body);
+  res.status(201).json(product);
+};
+```
+
+## Middleware System
+
+### Zero-Config Middleware
+
+THIZ.js includes a powerful convention-based middleware system. No configuration needed — just drop files!
+
+**Folder structure:**
+```
+src/
+├── middlewares/
+│   ├── cors._global.js      ← Auto-applied to ALL routes
+│   ├── logIP._global.js     ← Auto-applied to ALL routes
+│   ├── checkAuth.js         ← Use in specific routes
+│   ├── checkRole.js         ← Use in specific routes
+│   └── validateInput.js     ← Use in specific routes
+└── routes/
+    └── ...
+```
+
+### Global Middlewares
+
+Add `._global.js` (or `._global.ts`) suffix to auto-apply middleware to all routes:
+
+**`src/middlewares/cors._global.js`:**
+```javascript
+export default (req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,PATCH");
+  next();
+};
+```
+
+**`src/middlewares/logIP._global.js`:**
+```javascript
+export default (req, res, next) => {
+  console.log(`${req.method} ${req.path} - ${req.ip}`);
+  next();
+};
+```
+
+✅ **No configuration needed** — these run automatically on every route  
+✅ **Applied alphabetically** — `cors` runs before `logIP`
+
+### Named Middlewares
+
+Create named middleware files for route-specific use:
+
+**`src/middlewares/checkAuth.js`:**
+```javascript
+export default (req, res, next) => {
+  const token = req.headers.authorization;
+  
+  if (!token) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+  
+  // Verify token logic
+  req.user = { id: 1, name: "User" };
+  next();
+};
+```
+
+**`src/middlewares/checkRole.js`:**
+```javascript
+export default (req, res, next) => {
+  if (req.user?.role !== "admin") {
+    return res.status(403).json({ error: "Forbidden" });
+  }
+  next();
+};
+```
+
+### Using Middlewares in Routes
+
+Export a `middlewares` array from your route file:
+
+**Case 1: Only global middlewares (default)**
+```javascript
+// src/routes/health/GET.js
+// No middlewares export = only globals run
+
+export default (req, res) => {
+  res.json({ status: "ok" });
+};
+```
+
+**Case 2: Global + route-specific**
+```javascript
+// src/routes/admin/users/DELETE.js
+export const middlewares = ['checkAuth', 'checkRole'];
+
+export default (req, res) => {
+  // Runs: cors → logIP → checkAuth → checkRole → handler
+  res.json({ message: "User deleted" });
+};
+```
+
+**Case 3: Skip globals, use only route-specific**
+```javascript
+// src/routes/webhook/POST.js
+export const middlewares = ['!_global', 'validateWebhook'];
+
+export default (req, res) => {
+  // Runs: validateWebhook → handler (NO globals)
+  res.json({ received: true });
+};
+```
+
+**Case 4: No middlewares at all**
+```javascript
+// src/routes/public/data/GET.js
+export const middlewares = ['!_global'];
+
+export default (req, res) => {
+  // Runs: handler only (NO middlewares)
+  res.json({ data: "public" });
+};
+```
+
+### Middleware Execution Order
+
+```
+Request
+  ↓
+1. Global middlewares (alphabetical order)
+  ↓
+2. Route-specific middlewares (array order)
+  ↓
+3. Route handler
+  ↓
+Response
+```
+
+**Example:**
+```javascript
+// Globals: cors._global.js, logIP._global.js
+// Route: export const middlewares = ['checkAuth', 'checkRole'];
+
+// Execution order:
+// 1. cors (global)
+// 2. logIP (global)
+// 3. checkAuth (route)
+// 4. checkRole (route)
+// 5. handler
+```
+
+### TypeScript Middleware
+
+Middlewares support TypeScript too:
+
+**`src/middlewares/checkAuth._global.ts`:**
+```typescript
+import { Request, Response, NextFunction } from 'express';
+
+export default (req: Request, res: Response, next: NextFunction) => {
+  const token = req.headers.authorization;
+  
+  if (!token) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+  
+  next();
+};
+```
+
+### Middleware Examples
+
+**Rate limiting:**
+```javascript
+// src/middlewares/rateLimit._global.js
+const requests = new Map();
+
+export default (req, res, next) => {
+  const ip = req.ip;
+  const now = Date.now();
+  const windowMs = 60000; // 1 minute
+  const max = 100; // 100 requests per minute
+
+  if (!requests.has(ip)) {
+    requests.set(ip, []);
+  }
+
+  const userRequests = requests.get(ip).filter(time => now - time < windowMs);
+  
+  if (userRequests.length >= max) {
+    return res.status(429).json({ error: "Too many requests" });
+  }
+
+  userRequests.push(now);
+  requests.set(ip, userRequests);
+  next();
+};
+```
+
+**Request validation:**
+```javascript
+// src/middlewares/validateProduct.js
+export default (req, res, next) => {
+  const { name, price } = req.body;
+
+  if (!name || typeof name !== 'string') {
+    return res.status(400).json({ error: "Invalid product name" });
+  }
+
+  if (!price || typeof price !== 'number' || price <= 0) {
+    return res.status(400).json({ error: "Invalid product price" });
+  }
+
+  next();
+};
+```
+
+**Use in route:**
+```javascript
+// src/routes/product/POST.js
+export const middlewares = ['checkAuth', 'validateProduct'];
+
 export default async (req, res) => {
   const product = await db.products.create(req.body);
   res.status(201).json(product);
@@ -340,7 +547,16 @@ export default async (req, res) => {
 };
 ```
 
-**All styles work — choose what you prefer.**`
+**With middlewares:**
+```javascript
+export const middlewares = ['checkAuth'];
+
+export default async (req, res) => {
+  res.json({ user: req.user });
+};
+```
+
+**All styles work — choose what you prefer.**
 
 ## Error Handling
 
@@ -364,6 +580,7 @@ If `src/<routesDir>/` doesn't exist:
 await registerRoutes(app, 'nonexistent');
 // Error: Routes directory not found: /path/to/project/src/nonexistent
 ```
+
 **TypeScript without tsx:**
 If you try to use `.ts` files without installing `tsx`:
 ```javascript
@@ -374,6 +591,7 @@ await registerRoutes(app, 'routes');
 // TypeScript support requires 'tsx' package.
 // Install it with: npm install -D tsx
 ```
+
 **File extension conflicts:**
 If you have both `.js` and `.ts` for the same route:
 ```javascript
@@ -388,6 +606,26 @@ await registerRoutes(app, 'routes');
 // Both resolve to: [GET] /product
 // You cannot have both .js and .ts files for the same route.
 ```
+
+**Middleware not found:**
+If a route references a non-existent middleware:
+```javascript
+// routes/admin/GET.js
+export const middlewares = ['nonExistent'];
+// Error: Middleware 'nonExistent' not found in src/middlewares/
+// Available middlewares: checkAuth, checkRole, cors, logIP
+```
+
+**Invalid middlewares format:**
+If middlewares is not an array:
+```javascript
+// ❌ This will throw
+export const middlewares = 'checkAuth';
+
+// ✅ This works
+export const middlewares = ['checkAuth'];
+```
+
 **Handling errors in routes:**
 Use standard Express error handling:
 ```javascript
@@ -407,37 +645,62 @@ export default async (req, res) => {
 2. **Method files:** Named `GET.js`, `POST.js`, `PUT.js`, `PATCH.js`, or `DELETE.js` (case-insensitive)
 3. **Dynamic segments:** Use `[param]` folders to create `:param` URL parameters
 4. **Handler export:** Must use `export default` with a function
-5. **File extensions:** Use `.js` or `.ts` files (requires `tsx` for TypeScript). Cannot have both `.js` and `.ts` for the same route.
+5. **File extensions:** Use `.js` or `.ts` files (requires `tsx` for TypeScript). Cannot have both `.js` and `.ts` for the same route
+6. **Middlewares:** Optional `export const middlewares = [...]` array
+7. **Global middlewares:** Add `._global.js` suffix to auto-apply (e.g., `cors._global.js`)
+8. **Middleware location:** Middlewares must be in `src/middlewares/`
 
 ## Examples
 
-### RESTful CRUD API (JavaScript)
+### RESTful CRUD API with Auth
+
 ```
 src/
+├── middlewares/
+│   ├── cors._global.js
+│   ├── logIP._global.js
+│   ├── checkAuth.js
+│   └── checkRole.js
 └── routes/
     └── product/
-        ├── GET.js              → List products
-        ├── POST.js             → Create product
+        ├── GET.js              → Public (globals only)
+        ├── POST.js             → Protected (auth required)
         └── [id]/
-            ├── GET.js          → Get product by ID
-            ├── PATCH.js        → Update product
-            └── DELETE.js       → Delete product
+            ├── GET.js          → Public
+            ├── PATCH.js        → Protected
+            └── DELETE.js       → Admin only
 ```
 
-### RESTful CRUD API (TypeScript)
+**`src/routes/product/GET.js` (public):**
+```javascript
+export default async (req, res) => {
+  const products = await db.products.find();
+  res.json(products);
+};
 ```
-src/
-└── routes/
-    └── product/
-        ├── GET.ts              → List products
-        ├── POST.ts             → Create product
-        └── [id]/
-            ├── GET.ts          → Get product by ID
-            ├── PATCH.ts        → Update product
-            └── DELETE.ts       → Delete product
+
+**`src/routes/product/POST.js` (protected):**
+```javascript
+export const middlewares = ['checkAuth'];
+
+export default async (req, res) => {
+  const product = await db.products.create(req.body);
+  res.status(201).json(product);
+};
+```
+
+**`src/routes/product/[id]/DELETE.js` (admin only):**
+```javascript
+export const middlewares = ['checkAuth', 'checkRole'];
+
+export default async (req, res) => {
+  await db.products.delete(req.params.id);
+  res.json({ message: "Product deleted" });
+};
 ```
 
 ### Authentication Routes
+
 ```
 src/
 └── routes/
@@ -450,12 +713,25 @@ src/
             └── POST.js         → POST /auth/logout
 ```
 
+**Skip global middlewares for auth routes:**
+```javascript
+// src/routes/auth/login/POST.js
+export const middlewares = ['!_global']; // Skip rate limiting, etc.
+
+export default async (req, res) => {
+  const { email, password } = req.body;
+  // Login logic
+};
+```
+
 ### Versioned API
+
 ```javascript
 // Different versions in separate folders
 await registerRoutes(app, 'v1', { prefix: '/v1' });
 await registerRoutes(app, 'v2', { prefix: '/v2' });
 ```
+
 ```
 src/
 ├── v1/
@@ -474,11 +750,11 @@ src/
 import express from 'express';
 const router = express.Router();
 
-router.get('/', getProducts);
-router.post('/', createProduct);
-router.get('/:id', getProductById);
-router.patch('/:id', updateProduct);
-router.delete('/:id', deleteProduct);
+router.get('/', cors, logIP, getProducts);
+router.post('/', cors, logIP, checkAuth, createProduct);
+router.get('/:id', cors, logIP, getProductById);
+router.patch('/:id', cors, logIP, checkAuth, updateProduct);
+router.delete('/:id', cors, logIP, checkAuth, checkRole, deleteProduct);
 
 export default router;
 
@@ -489,18 +765,26 @@ app.use('/product', productRoutes);
 
 **With @thizjs/core:**
 ```
-src/routes/product/
-├── GET.js              ✓ Done
-├── POST.js             ✓ Done
-└── [id]/
-    ├── GET.js          ✓ Done
-    ├── PATCH.js        ✓ Done
-    └── DELETE.js       ✓ Done
+src/
+├── middlewares/
+│   ├── cors._global.js      ← Auto-applied
+│   ├── logIP._global.js     ← Auto-applied
+│   ├── checkAuth.js
+│   └── checkRole.js
+└── routes/
+    └── product/
+        ├── GET.js              ← Just the handler
+        ├── POST.js             ← export const middlewares = ['checkAuth']
+        └── [id]/
+            ├── GET.js          ← Just the handler
+            ├── PATCH.js        ← export const middlewares = ['checkAuth']
+            └── DELETE.js       ← export const middlewares = ['checkAuth', 'checkRole']
 ```
 
 No more:
 - ❌ Importing and mounting routers
 - ❌ Manually defining route paths
+- ❌ Repeating global middlewares everywhere
 - ❌ Keeping route files and registration in sync
 - ❌ Boilerplate, boilerplate, boilerplate
 
@@ -520,9 +804,10 @@ We welcome contributions! If you find a bug or want to add a feature:
 
 ## Coming Soon
 
-- 🔄 Middleware support (per-route and global)
 - 🎣 Route hooks (beforeEach, afterEach)
 - 🔌 Plugin system
+- 📊 Built-in request logging
+- 🔒 CSRF protection middleware
 
 Want these features? [Open an issue](https://github.com/santhosh-2504/thizjs-core/issues) or contribute!
 

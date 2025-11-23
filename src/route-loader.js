@@ -1,10 +1,11 @@
 import fs from "fs";
 import path from "path";
 import { pathToFileURL } from "url";
+import { MiddlewareLoader } from "./middleware-loader.js";
 
 /**
  * Register file-based routes using folder-based method mapping.
- * Supports both .js and .ts route files.
+ * Supports both .js and .ts route files with middleware support.
  *
  * Example:
  *   routes/product/add-product/POST.js → POST /product/add-product
@@ -21,8 +22,12 @@ export async function registerRoutes(app, routesDir = "routes", options = {}) {
     throw new Error(`Routes directory not found: ${baseDir}`);
   }
 
+  // Initialize middleware loader
+  const middlewareLoader = new MiddlewareLoader(projectRoot);
+  await middlewareLoader.loadMiddlewares();
+
   const routeRegistry = new Map();
-  const fileRegistry = new Map(); // Track files per route
+  const fileRegistry = new Map();
 
   function normalizeDynamic(p) {
     return p.replace(/:\w+/g, ":param");
@@ -160,11 +165,28 @@ Both resolve to: [${method.toUpperCase()}] ${routePath}
             throw new Error(`No handler exported in ${fullPath}`);
           });
 
-        app[method](routePath, handler);
+        // Resolve middlewares for this route
+        const routeMiddlewares = handlerModule.middlewares || [];
+        
+        // Validate middlewares is an array
+        if (!Array.isArray(routeMiddlewares)) {
+          throw new Error(
+            `Invalid middlewares export in ${fullPath}\n` +
+            `Expected an array, got ${typeof routeMiddlewares}`
+          );
+        }
+
+        const middlewares = middlewareLoader.resolveMiddlewares(routeMiddlewares);
+
+        // Register route with middlewares
+        app[method](routePath, ...middlewares, handler);
 
         const fileType = fileExt === "ts" ? "TS" : "JS";
+        const mwCount = middlewares.length;
+        const mwInfo = mwCount > 0 ? ` [${mwCount} middleware${mwCount > 1 ? 's' : ''}]` : '';
+        
         console.log(
-          `Loaded route: [${method.toUpperCase()}] ${routePath} (${fileType})`
+          `Loaded route: [${method.toUpperCase()}] ${routePath} (${fileType})${mwInfo}`
         );
       } catch (error) {
         console.error(`Failed to load route: ${fullPath}`);
