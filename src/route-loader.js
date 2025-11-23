@@ -4,10 +4,11 @@ import { pathToFileURL } from "url";
 
 /**
  * Register file-based routes using folder-based method mapping.
+ * Supports both .js and .ts route files.
  *
  * Example:
  *   routes/product/add-product/POST.js → POST /product/add-product
- *   routes/product/get/[id]/GET.js     → GET /product/get/:id
+ *   routes/product/get/[id]/GET.ts     → GET /product/get/:id
  */
 export async function registerRoutes(app, routesDir = "routes", options = {}) {
   const { prefix = "", strict = false } = options;
@@ -21,9 +22,47 @@ export async function registerRoutes(app, routesDir = "routes", options = {}) {
   }
 
   const routeRegistry = new Map();
+  const fileRegistry = new Map(); // Track files per route
 
   function normalizeDynamic(p) {
     return p.replace(/:\w+/g, ":param");
+  }
+
+  /**
+   * Check if tsx is available for TypeScript support
+   */
+  let tsxAvailable = false;
+  try {
+    await import("tsx/esm/api");
+    tsxAvailable = true;
+  } catch {
+    tsxAvailable = false;
+  }
+
+  /**
+   * Import a module with TypeScript support if available
+   */
+  async function importModule(filePath) {
+    const ext = path.extname(filePath);
+
+    if (ext === ".ts") {
+      if (!tsxAvailable) {
+        throw new Error(
+          `Cannot load TypeScript route file: ${filePath}\n\n` +
+          `TypeScript support requires 'tsx' package.\n` +
+          `Install it with: npm install -D tsx\n\n` +
+          `Alternatively, transpile your .ts files to .js before running.`
+        );
+      }
+
+      // Use tsx to load TypeScript files
+      const { tsImport } = await import("tsx/esm/api");
+      return await tsImport(filePath, import.meta.url);
+    } else {
+      // Regular JavaScript file
+      const fileUrl = pathToFileURL(filePath).href;
+      return await import(fileUrl);
+    }
   }
 
   async function walk(currentDir, prefixPath = "") {
@@ -37,11 +76,14 @@ export async function registerRoutes(app, routesDir = "routes", options = {}) {
         continue;
       }
 
-      // Method files: GET.js, POST.js, DELETE.js, PATCH.js, PUT.js
-      const methodMatch = item.name.match(/^(GET|POST|PUT|PATCH|DELETE)\.js$/i);
+      // Method files: GET.js, POST.ts, DELETE.js, etc.
+      const methodMatch = item.name.match(
+        /^(GET|POST|PUT|PATCH|DELETE)\.(js|ts)$/i
+      );
       if (!methodMatch) continue;
 
       const method = methodMatch[1].toLowerCase();
+      const fileExt = methodMatch[2];
 
       // Convert folders like [id] → :id
       const processedPath = prefixPath.replace(/\[(.+?)\]/g, ":$1");
@@ -51,7 +93,35 @@ export async function registerRoutes(app, routesDir = "routes", options = {}) {
         .replace(/\\/g, "/")
         .replace(/\/+/g, "/");
 
-      // Detect dynamic route conflicts
+      // Create unique route signature
+      const routeSignature = `${method}:${routePath}`;
+
+      // Check for .js/.ts file conflicts for the same route
+      if (fileRegistry.has(routeSignature)) {
+        const existingFile = fileRegistry.get(routeSignature);
+        const existingExt = path.extname(existingFile);
+        const currentExt = `.${fileExt}`;
+
+        // If different extensions but same route
+        if (existingExt !== currentExt) {
+          const msg = `
+File extension conflict detected!
+
+Files:
+→ ${existingFile}
+→ ${fullPath}
+
+Both resolve to: [${method.toUpperCase()}] ${routePath}
+
+You cannot have both .js and .ts files for the same route.
+Please keep only one version.
+          `.trim();
+
+          throw new Error(msg);
+        }
+      }
+
+      // Detect dynamic route conflicts (e.g., [id] vs [slug])
       const fingerprint = `${method}:${normalizeDynamic(routePath)}`;
 
       if (routeRegistry.has(fingerprint)) {
@@ -73,20 +143,30 @@ Both resolve to: [${method.toUpperCase()}] ${routePath}
         routeRegistry.set(fingerprint, fullPath);
       }
 
-      // Import handler
-      const fileUrl = pathToFileURL(fullPath).href;
-      const handlerModule = await import(fileUrl);
+      // Register the file for this route
+      fileRegistry.set(routeSignature, fullPath);
 
-      const handler =
-        handlerModule.default ||
-        handlerModule.handler ||
-        (() => {
-          throw new Error(`No handler exported in ${fullPath}`);
-        });
+      // Import handler (with TypeScript support)
+      try {
+        const handlerModule = await importModule(fullPath);
 
-      app[method](routePath, handler);
+        const handler =
+          handlerModule.default ||
+          handlerModule.handler ||
+          (() => {
+            throw new Error(`No handler exported in ${fullPath}`);
+          });
 
-      console.log(`Loaded route: [${method.toUpperCase()}] ${routePath}`);
+        app[method](routePath, handler);
+
+        const fileType = fileExt === "ts" ? "TS" : "JS";
+        console.log(
+          `Loaded route: [${method.toUpperCase()}] ${routePath} (${fileType})`
+        );
+      } catch (error) {
+        console.error(`Failed to load route: ${fullPath}`);
+        throw error;
+      }
     }
   }
 

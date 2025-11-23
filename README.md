@@ -16,7 +16,7 @@
 - 🚀 **Multiple route directories** — organize by feature, version, or prefix
 - ⚡ **Drop-in compatible** — use in existing Express projects
 - 🛡️ **Conflict detection** — warns about overlapping dynamic routes
-- 📘 **TypeScript support** — full type definitions included
+- 📘 **Native TypeScript support** — write route files in `.ts` or `.js`
 
 ## Quick Start
 
@@ -45,8 +45,43 @@ npm install @thizjs/core
 npm install @thizjs/core
 npm install -D @types/express @types/node
 ```
+### Native `.ts` Route Files
 
-**TypeScript example:**
+Write route handlers directly in TypeScript:
+```bash
+npm install -D tsx @types/express @types/node
+```
+
+**TypeScript route example:**
+```typescript
+// src/routes/product/[id]/GET.ts
+import { Request, Response } from 'express';
+
+interface Product {
+  id: string;
+  name: string;
+  price: number;
+}
+
+export default async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const product: Product = await db.products.findById(id);
+  
+  if (!product) {
+    return res.status(404).json({ error: 'Product not found' });
+  }
+  
+  res.json(product);
+};
+```
+
+### Important Notes
+
+- ⚠️ **Cannot mix extensions:** Choose either `.js` OR `.ts` for each route (not both)
+- ✅ **TypeScript is optional:** JavaScript-only projects work without any extra dependencies
+- ✅ **Graceful fallback:** Clear error messages if `.ts` files are used without `tsx` installed
+
+**Using TypeScript in your App:**
 ```typescript
 import express, { Request, Response } from 'express';
 import { registerRoutes } from '@thizjs/core';
@@ -62,23 +97,6 @@ await registerRoutes(app, 'routes', {
 });
 
 app.listen(3000);
-```
-
-**Type-safe route handlers:**
-```typescript
-// src/routes/product/[id]/GET.ts
-import { Request, Response } from 'express';
-
-export default async (req: Request, res: Response) => {
-  const { id } = req.params;
-  const product = await db.products.findById(id);
-  
-  if (!product) {
-    return res.status(404).json({ error: 'Product not found' });
-  }
-  
-  res.json(product);
-};
 ```
 
 ## Usage
@@ -292,11 +310,11 @@ await registerRoutes(app, 'v2');      // → src/v2/
 
 ### Supported HTTP Methods
 
-- `GET.js`
-- `POST.js`
-- `PUT.js`
-- `PATCH.js`
-- `DELETE.js`
+- `GET.js` or `GET.ts`
+- `POST.js` or `POST.ts`
+- `PUT.js` or `PUT.ts`
+- `PATCH.js` or `PATCH.ts`
+- `DELETE.js` or `DELETE.ts`
 
 Each file should export a default Express handler:
 
@@ -346,7 +364,30 @@ If `src/<routesDir>/` doesn't exist:
 await registerRoutes(app, 'nonexistent');
 // Error: Routes directory not found: /path/to/project/src/nonexistent
 ```
-
+**TypeScript without tsx:**
+If you try to use `.ts` files without installing `tsx`:
+```javascript
+// routes/product/GET.ts exists but tsx not installed
+await registerRoutes(app, 'routes');
+// Error: Cannot load TypeScript route file: src/routes/product/GET.ts
+// 
+// TypeScript support requires 'tsx' package.
+// Install it with: npm install -D tsx
+```
+**File extension conflicts:**
+If you have both `.js` and `.ts` for the same route:
+```javascript
+// routes/product/GET.js AND routes/product/GET.ts both exist
+await registerRoutes(app, 'routes');
+// Error: File extension conflict detected!
+// 
+// Files:
+// → src/routes/product/GET.js
+// → src/routes/product/GET.ts
+// 
+// Both resolve to: [GET] /product
+// You cannot have both .js and .ts files for the same route.
+```
 **Handling errors in routes:**
 Use standard Express error handling:
 ```javascript
@@ -366,10 +407,11 @@ export default async (req, res) => {
 2. **Method files:** Named `GET.js`, `POST.js`, `PUT.js`, `PATCH.js`, or `DELETE.js` (case-insensitive)
 3. **Dynamic segments:** Use `[param]` folders to create `:param` URL parameters
 4. **Handler export:** Must use `export default` with a function
-5. **File extensions:** Must be `.js` files (TypeScript projects can use `.ts` with appropriate transpilation)
+5. **File extensions:** Use `.js` or `.ts` files (requires `tsx` for TypeScript). Cannot have both `.js` and `.ts` for the same route.
+
 ## Examples
 
-### RESTful CRUD API
+### RESTful CRUD API (JavaScript)
 ```
 src/
 └── routes/
@@ -380,6 +422,19 @@ src/
             ├── GET.js          → Get product by ID
             ├── PATCH.js        → Update product
             └── DELETE.js       → Delete product
+```
+
+### RESTful CRUD API (TypeScript)
+```
+src/
+└── routes/
+    └── product/
+        ├── GET.ts              → List products
+        ├── POST.ts             → Create product
+        └── [id]/
+            ├── GET.ts          → Get product by ID
+            ├── PATCH.ts        → Update product
+            └── DELETE.ts       → Delete product
 ```
 
 ### Authentication Routes
@@ -468,7 +523,6 @@ We welcome contributions! If you find a bug or want to add a feature:
 - 🔄 Middleware support (per-route and global)
 - 🎣 Route hooks (beforeEach, afterEach)
 - 🔌 Plugin system
-- 📘 Native `.ts` route files (currently supports TS via type definitions)
 
 Want these features? [Open an issue](https://github.com/santhosh-2504/thizjs-core/issues) or contribute!
 
