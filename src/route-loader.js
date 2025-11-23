@@ -55,9 +55,12 @@ export async function registerRoutes(app, routesDir = "routes", options = {}) {
         );
       }
 
+      // Convert to file:// URL for cross-platform support
+      const fileUrl = pathToFileURL(filePath).href;
+      
       // Use tsx to load TypeScript files
       const { tsImport } = await import("tsx/esm/api");
-      return await tsImport(filePath, import.meta.url);
+      return await tsImport(fileUrl, import.meta.url);
     } else {
       // Regular JavaScript file
       const fileUrl = pathToFileURL(filePath).href;
