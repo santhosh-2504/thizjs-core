@@ -1,7 +1,8 @@
 {
   "name": "@thizjs/core",
   "version": "0.2.0",
-  "description": "File-based routing for Express — the backbone of THIZ.js",
+  "description": "DEPRECATED: Use @thizjs/express instead - File-based routing for Express",
+  "deprecated": "⚠️ Renamed to @thizjs/express. Install: npm install @thizjs/express",
   "main": "src/index.js",
   "types": "src/index.d.ts",
   "type": "module",
@@ -11,9 +12,9 @@
     "url": "git+https://github.com/santhosh-2504/thizjs-core.git"
   },
   "bugs": {
-    "url": "https://github.com/santhosh-2504/thizjs-core/issues"
+    "url": "https://github.com/santhosh-2504/thizjs-express/issues"
   },
-  "homepage": "https://github.com/santhosh-2504/thizjs-core#readme",
+  "homepage": "https://github.com/santhosh-2504/thizjs-express#readme",
   "keywords": [
     "thiz",
     "framework",
@@ -21,7 +22,8 @@
     "routing",
     "express",
     "file-based-routing",
-    "typescript"
+    "typescript",
+    "deprecated"
   ],
   "files": [
     "src"

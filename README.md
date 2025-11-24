@@ -1,4 +1,55 @@
-# @thizjs/core
+# ⚠️ THIS PACKAGE HAS BEEN RENAMED
+
+> **`@thizjs/core` is now [`@thizjs/express`](https://www.npmjs.com/package/@thizjs/express)**
+
+## 🔄 Quick Migration (2 minutes)
+```bash
+# 1. Uninstall old package
+npm uninstall @thizjs/core
+
+# 2. Install new package
+npm install @thizjs/express
+```
+```javascript
+// 3. Update your imports
+- import { registerRoutes } from '@thizjs/core';
++ import { registerRoutes } from '@thizjs/express';
+```
+
+**That's it!** Same API, same features, better name.
+
+---
+
+### 📦 Why the rename?
+
+THIZ.js is expanding to support multiple frameworks:
+- ✅ **[@thizjs/express](https://www.npmjs.com/package/@thizjs/express)** - For Express (stable, live now!)
+- 🔜 **@thizjs/hono** - For Hono (coming soon!)
+
+Framework-specific names make this clearer.
+
+---
+
+### ⏱️ Support Timeline
+
+- **Now - 3 months:** This package is frozen but still works
+- **After 3 months:** No support, no updates
+- **Forever:** [@thizjs/express](https://www.npmjs.com/package/@thizjs/express) actively maintained
+
+---
+
+### 🔗 New Links
+
+- **📦 npm:** https://www.npmjs.com/package/@thizjs/express
+- **📘 Docs:** https://github.com/santhosh-2504/thizjs-express#readme
+- **🐛 Issues:** https://github.com/santhosh-2504/thizjs-express/issues
+
+
+<hr/>
+
+# @thizjs/core (Deprecated)
+
+> ⚠️ **This documentation is for the old package. See [@thizjs/express](https://www.npmjs.com/package/@thizjs/express) for current docs.**
 
 > The backbone of THIZ.js — file-based routing for Express that actually makes sense.
 
